@@ -6,6 +6,7 @@ import (
 
 	"github.com/artnikel/WebServiceAuth/internal/model"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserRepository interface {
@@ -24,7 +25,12 @@ func NewUserService(uRep UserRepository) *UserService {
 func (us *UserService) SignUp(ctx context.Context, user *model.User) error {
 	user.ID = uuid.New()
 	user.Admin = false
-	err := us.uRep.SignUp(ctx, user)
+	var err error
+	user.Password, err = us.HashPassword(user.Password)
+	if err != nil {
+		return fmt.Errorf("UserService-SignUp-HashPassword: error: %w", err)
+	}
+	err = us.uRep.SignUp(ctx, user)
 	if err != nil {
 		return fmt.Errorf("UserService-SignUp: error: %w", err)
 	}
@@ -32,9 +38,20 @@ func (us *UserService) SignUp(ctx context.Context, user *model.User) error {
 }
 
 func (us *UserService) GetByLogin(ctx context.Context, user *model.User) (string, error) {
-	password, err := us.uRep.GetByLogin(ctx, user)
+	passwordHash, err := us.uRep.GetByLogin(ctx, user)
 	if err != nil {
 		return "", fmt.Errorf("UserService-GetByLogin: error: %w", err)
 	}
-	return password, nil
+	return passwordHash, nil
+}
+
+func (us *UserService) HashPassword(password string) (string, error) {
+	const cost = 14
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+	return string(bytes), err
+}
+
+func (us *UserService) CheckPasswordHash(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }

@@ -5,3 +5,11 @@ CREATE TABLE IF NOT EXISTS users (
 	admin BOOLEAN,
 	primary key (id)
 );
+
+CREATE TABLE IF NOT EXISTS balance (
+	balanceid uuid,
+	profileid uuid,
+	operation double precision,
+	operationtime timestamp DEFAULT NOW(),
+	primary key (balanceid)
+);

@@ -2,6 +2,7 @@ package model
 
 import (
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type User struct {
@@ -11,3 +12,8 @@ type User struct {
 	Admin    bool
 }
 
+type Balance struct {
+	BalanceID uuid.UUID       
+	ProfileID uuid.UUID       
+	Operation decimal.Decimal `json:"operation" validate:"required"`
+}

@@ -43,12 +43,12 @@ func (p *PgRepository) GetByLogin(ctx context.Context,user *model.User) (string,
 	if count == 0 {
 		return "", fmt.Errorf("PgRepository-GetByLogin: the login does not exist ")
 	}
-	var password string
-	err = p.pool.QueryRow(ctx, "SELECT password FROM users WHERE login = $1", user.Login).Scan(&password)
+	var passwordHash string
+	err = p.pool.QueryRow(ctx, "SELECT password FROM users WHERE login = $1", user.Login).Scan(&passwordHash)
 	if err != nil {
 		return "", fmt.Errorf("PgRepository-GetByLogin: error in method r.pool.QuerryRow(): %w", err)
 	}
-	return password, nil
+	return passwordHash, nil
 }
 
 
