@@ -23,6 +23,7 @@ func NewBalanceService(bRep BalanceRepository) *BalanceService {
 }
 
 func (b *BalanceService) BalanceOperation(ctx context.Context, balance *model.Balance) error {
+	balance.BalanceID = uuid.New()
 	if balance.Operation.IsNegative() {
 		money, err := b.GetBalance(ctx, balance.ProfileID)
 		if err != nil {

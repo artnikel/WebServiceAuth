@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-)
+	custommiddleware "github.com/artnikel/WebServiceAuth/internal/middleware")
 
 func connectPostgres(connString string) (*pgxpool.Pool, error) {
 	cfgPostgres, err := pgxpool.ParseConfig(connString)
@@ -38,7 +38,7 @@ func main() {
 	}
 	defer dbpool.Close()
 	pgRep := repository.NewPgRepository(dbpool)
-	userServ := service.NewUserService(pgRep)
+	userServ := service.NewUserService(pgRep, *cfg)
 	balServ := service.NewBalanceService(pgRep)
 	hndl := handler.NewEntityUser(userServ, balServ, v)
 	e := echo.New()
@@ -48,7 +48,8 @@ func main() {
 	e.GET("/", hndl.Auth)
 	e.POST("/signup", hndl.SignUp)
 	e.POST("/login", hndl.Login)
-	e.GET("/index", hndl.Index)
-	e.GET("/getbalance", hndl.GetBalance)
+	e.GET("/index", hndl.Index, custommiddleware.JWTMiddleware)
+	e.GET("/getbalance", hndl.GetBalance, custommiddleware.JWTMiddleware)
+	e.POST("/deposit", hndl.BalanceOperation, custommiddleware.JWTMiddleware)
 	e.Logger.Fatal(e.Start(":8900"))
 }
