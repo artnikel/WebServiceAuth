@@ -15,7 +15,7 @@
         <img src="/templates/auth/images/auth.avif" width="80" height="80">
         <h1 class="h1 mb-1 fw-normal">Authorization</h1>
         <div class="h6 mb-3">Please fill the fields.</div>     
-        <div id="auth-form">
+        <form id="auth-form" action="/login" method="POST">
             <div class="form-group">
                 <input type="text" name="login" class="form-control" id="login" placeholder="Login:   (5-20 symb.)">
             </div>
@@ -33,13 +33,11 @@
             <div class="alert alert-danger my-3" role="alert">{{ .errorMsg }}</div>
             {{ end }}
             <br>
-            <button class="btn btn-lg btn-primary" id="auth-button" onclick="test()">Login</button>
-        </div>
+            <button class="btn btn-lg btn-primary" id="auth-button">Login</button>
+        </form>
         <button type="button" id="toggle-button">Switch to Sign Up</button>
     </main>
     <script src="/templates/auth/auth.js"></script>
-    <script src="/templates/index/to-storage.js"></script>
-    <script src="/templates/index/from-storage.js"></script>
 </body>
 </html>
 {{ end }}

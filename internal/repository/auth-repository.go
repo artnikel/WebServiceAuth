@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/artnikel/WebServiceAuth/internal/model"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -35,27 +36,20 @@ func (p *PgRepository) SignUp(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-func (p *PgRepository) GetByLogin(ctx context.Context, user *model.User) (string, error) {
+func (p *PgRepository) GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, string, error) {
 	var count int
 	err := p.pool.QueryRow(ctx, "SELECT COUNT(id) FROM users WHERE login = $1", user.Login).Scan(&count)
 	if err != nil {
-		return "", fmt.Errorf("PgRepository-GetByLogin: error in method r.pool.QuerryRow(): %w", err)
+		return uuid.Nil, "", fmt.Errorf("PgRepository-GetByLogin: error in method r.pool.QuerryRow(): %w", err)
 	}
 	if count == 0 {
-		return "", fmt.Errorf("PgRepository-GetByLogin: the login does not exist ")
+		return uuid.Nil, "", fmt.Errorf("PgRepository-GetByLogin: the login does not exist ")
 	}
 	var passwordHash string
-	err = p.pool.QueryRow(ctx, "SELECT password FROM users WHERE login = $1", user.Login).Scan(&passwordHash)
+	var userID uuid.UUID
+	err = p.pool.QueryRow(ctx, "SELECT id, password FROM users WHERE login = $1", user.Login).Scan(&userID,&passwordHash)
 	if err != nil {
-		return "", fmt.Errorf("PgRepository-GetByLogin: error in method r.pool.QuerryRow(): %w", err)
+		return uuid.Nil, "", fmt.Errorf("PgRepository-GetByLogin: error in method r.pool.QuerryRow(): %w", err)
 	}
-	return passwordHash, nil
-}
-
-func (p *PgRepository) AddRefreshToken(ctx context.Context, user *model.User) error {
-	_, err := p.pool.Exec(ctx, "UPDATE users SET refreshtoken = $1 WHERE id = $2", user.RefreshToken, user.ID)
-	if err != nil {
-		return fmt.Errorf("PgRepository-AddRefreshToken:  error in method r.pool.Exec(): %w", err)
-	}
-	return nil
+	return userID, passwordHash, nil
 }
