@@ -53,3 +53,19 @@ func (p *PgRepository) GetByLogin(ctx context.Context, user *model.User) (uuid.U
 	}
 	return userID, passwordHash, nil
 }
+
+func (p *PgRepository) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+	var count int
+	err := p.pool.QueryRow(ctx, "SELECT COUNT(id) FROM users WHERE id = $1", id).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("PgRepository-DeleteAccount: error in method r.pool.QuerryRow(): %w", err)
+	}
+	if count == 0 {
+		return fmt.Errorf("PgRepository-DeleteAccount: cannot delete non-existent user")
+	}
+	_, err = p.pool.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("PgRepository-DeleteAccount: error in method r.pool.Exec(): %w", err)
+	}
+	return nil
+}

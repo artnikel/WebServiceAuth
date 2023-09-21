@@ -10,6 +10,9 @@ import (
 )
 
 func (p *PgRepository) BalanceOperation(ctx context.Context, balance *model.Balance) error {
+	if balance.Operation.IsZero() {
+		return fmt.Errorf("PgRepository-BalanceOperation: operation is zero")
+	}
 	_, err := p.pool.Exec(ctx, "INSERT INTO balance (balanceid, profileid, operation) VALUES ($1, $2, $3)",
 		balance.BalanceID, balance.ProfileID, balance.Operation)
 	if err != nil {

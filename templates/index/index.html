@@ -21,40 +21,42 @@
       </a>
       <ul class="nav nav-pills mt-2 mt-md-0 ms-md-auto">
         <li class="nav-item">
-          <a class="nav-link" href="#">Cart</a>
+          <a class="nav-link" href="#" data-toggle="modal" data-target="#cartModal">Cart</a>
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Account</a>
+          <a class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account</a>
           <div class="dropdown-menu">
-            <a class="dropdown-item">Balance: {{.}}</a>
+            <a class="dropdown-item"><strong>Balance: {{.}}$</strong></a>
             <div class="dropdown-divider"></div>
-            <a class="dropdown-item" data-toggle="modal" data-target="#balanceModal">Refresh Balance</a>
+            <a class="dropdown-item" href="/getbalance">Refresh Balance</a>
             <a class="dropdown-item" data-toggle="modal" data-target="#depositModal">Deposit</a>
             <div class="dropdown-divider"></div>
-            <a class="dropdown-item" data-toggle="modal" data-target="#deleteModal">Delete Account</a>
+            <a class="dropdown-item" data-toggle="modal" data-target="#deleteModal"><strong>Delete Account</strong></a>
           </div>
         </li>
       </ul>
-      <div class="modal fade" id="balanceModal" tabindex="-1" role="dialog" aria-labelledby="balanceModalLabel" aria-hidden="true">
+      <div class="modal fade" id="cartModal" tabindex="-1" role="dialog" aria-labelledby="cartModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="balanceModalLabel">Account Information</h5>
+              <h5 class="modal-title" id="cartModalLabel">Your Cart</h5>
               <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                 <span aria-hidden="true">&times;</span>
               </button>
             </div>
             <div class="modal-body">
-              <form action="/getbalance" method="GET">
-                <div class="form-group">
-                  <br>
-                </div>
-                <button type="submit" class="btn btn-primary" id="updateBalance">Refresh Balance</button>
-              </form>                      
+              <ul id="cartItemList">
+              </ul>
+              <hr>
+              <p id="totalPriceModal">Total Price: $0.00</p>
+            </div>
+            <div class="modal-footer">
+              <div class="modal"></div>
+              <button type="button" id="buyButton" class="btn btn-success" onclick="buyWithPost()">Buy</button>
             </div>
           </div>
         </div>
-      </div>
+      </div>   
       <div class="modal fade" id="depositModal" tabindex="-1" role="dialog" aria-labelledby="depositModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
           <div class="modal-content">
@@ -67,10 +69,8 @@
             <div class="modal-body">
               <form action="/deposit" method="POST">
                 <div class="form-group">
-                  <label for="profileId" class="col-form-label">Profile ID:</label>
-                  <input type="text" name="profileid" class="form-control" id="profileid">
                   <label for="money" class="col-form-label">Sum of money:</label>
-                  <input type="text" name="money" class="form-control" id="money">
+                  <input type="number" step="0.01" name="money" class="form-control" id="money" required>
                   <br>
                 </div>
                 <button type="submit" class="btn btn-primary" id="updateBalance">Deposit</button>
@@ -83,16 +83,15 @@
         <div class="modal-dialog" role="document">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="deleteModalLabel">Deleting Account/h5>
+              <h5 class="modal-title delete-link" id="deleteModalLabel">Deleting Account</h5>
               <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                 <span aria-hidden="true">&times;</span>
               </button>
             </div>
             <div class="modal-body">
+              <a>Are you sure you want to delete your account?</a>
               <form action="/deleteaccount" method="POST">
                 <div class="form-group">
-                  <label for="profileId" class="col-form-label">Profile ID:</label>
-                  <input type="text" name="profileid" class="form-control" id="profileid">
                   <br>
                 </div>
                 <button type="submit" class="btn btn-primary">Delete</button>
@@ -102,7 +101,6 @@
         </div>
       </div>
     </div>
-
     <div class="pricing-header p-3 pb-md-4 mx-auto text-center">
       <h1 class="display-4 fw-normal text-body-emphasis">Laptops</h1>
     </div>
@@ -145,7 +143,7 @@
               <li>AMD Radeon Vega 8</li>
               <li>16.0 "</li>
             </ul>
-            <button type="button" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
+            <button type="button" data-product-id="huawei-laptop" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
           </div>
         </div>
       </div>
@@ -185,7 +183,7 @@
               <li>GeForce RTX 3050</li>
               <li>15.6 "</li>
             </ul>
-            <button type="button" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
+            <button type="button" data-product-id="asus-laptop" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
           </div>
         </div>
       </div>
@@ -225,7 +223,7 @@
               <li>Radeon 610M</li>
               <li>15.6 "</li>
             </ul>
-            <button type="button" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
+            <button type="button" data-product-id="lenovo-laptop" class="w-100 btn btn-lg btn-primary">Add to Cart</button>
           </div>
         </div>
       </div>

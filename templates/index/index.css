@@ -4,9 +4,11 @@
     color: black;
 }
 
-
-/* Custom CSS for dark cards */
 .dark-card {
-    background-color: #333; /* Set the dark background color */
-    color: white; /* Set text color to white for better readability */
+    background-color: #333; 
+    color: white; 
+}
+
+.delete-link {
+    color: red; 
 }

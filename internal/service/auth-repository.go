@@ -13,6 +13,7 @@ import (
 type UserRepository interface {
 	SignUp(ctx context.Context, user *model.User) error
 	GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, string, error)
+	DeleteAccount(ctx context.Context, id uuid.UUID) error
 }
 
 type UserService struct {
@@ -52,6 +53,14 @@ func (us *UserService) GetByLogin(ctx context.Context, user *model.User) (uuid.U
 		return uuid.Nil, fmt.Errorf("UserService-GetByLogin: wrong password")
 	}
 	return userID, nil
+}
+
+func (us *UserService) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+	err := us.uRep.DeleteAccount(ctx, id)
+	if err != nil {
+		return fmt.Errorf("UserService-DeleteAccount: error%w", err)
+	}
+	return nil
 }
 
 func (us *UserService) GenerateHash(password string) (string, error) {

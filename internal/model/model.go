@@ -6,14 +6,20 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID
-	Login        string `json:"login" form:"login" validate:"required,min=5,max=20"`
-	Password     string `json:"password" form:"password" validate:"required,min=8"`
-	Admin        bool
+	ID       uuid.UUID
+	Login    string `json:"login" form:"login" validate:"required,min=5,max=20"`
+	Password string `json:"password" form:"password" validate:"required,min=8"`
+	Admin    bool
 }
 
 type Balance struct {
 	BalanceID uuid.UUID
 	ProfileID uuid.UUID
 	Operation decimal.Decimal `json:"operation" validate:"required"`
+}
+
+type Product struct {
+	ProductID uuid.UUID
+	Name      string
+	Price     decimal.Decimal
 }
