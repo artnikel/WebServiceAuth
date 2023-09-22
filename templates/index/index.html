@@ -34,6 +34,15 @@
             <a class="dropdown-item" data-toggle="modal" data-target="#deleteModal"><strong>Delete Account</strong></a>
           </div>
         </li>
+        {{ if .IsAdmin }}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Root</a>
+          <div class="dropdown-menu">
+            <a class="dropdown-item" data-toggle="modal" data-target="#signupAdminModal">Sign Up new Admin</a>
+            <a class="dropdown-item" data-toggle="modal" data-target="#deleteAnyModal"><strong>Delete any Account</strong></a>
+          </div>
+        </li>
+        {{ end }}
       </ul>
       <div class="modal fade" id="cartModal" tabindex="-1" role="dialog" aria-labelledby="cartModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
@@ -92,6 +101,52 @@
               <a>Are you sure you want to delete your account?</a>
               <form action="/deleteaccount" method="POST">
                 <div class="form-group">
+                  <br>
+                </div>
+                <button type="submit" class="btn btn-primary">Delete</button>
+              </form>                      
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="signupAdminModal" tabindex="-1" role="dialog" aria-labelledby="signupAdminModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="balanceModalLabel">Register new Admin</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <form action="/signupadmin" method="POST">
+                <div class="form-group">
+                  <label for="login" class="col-form-label">Login:   (5-20 symb.)</label>
+                  <input type="text" name="login" class="form-control" id="login" required>
+                  <label for="password" class="col-form-label">Password:   (min 8 symb.)</label>
+                  <input type="text" name="password" class="form-control" id="password" required>
+                  <br>
+                </div>
+                <button type="submit" class="btn btn-primary" id="updateBalance">Register</button>
+              </form>                      
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal fade" id="deleteAnyModal" tabindex="-1" role="dialog" aria-labelledby="deleteAnyModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title delete-link" id="deleteAnyModalLabel">Deleting Account</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body">
+              <form action="/deletebyid" method="POST">
+                <div class="form-group">
+                  <label for="profileid" class="col-form-label">Please enter id of profile:</label>
+                  <input type="text" name="profileid" class="form-control" id="profileid" required>
                   <br>
                 </div>
                 <button type="submit" class="btn btn-primary">Delete</button>

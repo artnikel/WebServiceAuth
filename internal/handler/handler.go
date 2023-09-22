@@ -19,7 +19,8 @@ import (
 
 type UserService interface {
 	SignUp(ctx context.Context, user *model.User) error
-	GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, error)
+	SignUpAdmin(ctx context.Context, user *model.User) error
+	GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, bool, error)
 	DeleteAccount(ctx context.Context, id uuid.UUID) error
 }
 
@@ -71,12 +72,28 @@ func (eu *EntityUser) Index(c echo.Context) error {
 	if len(session.Values) == 0 {
 		return c.Redirect(http.StatusSeeOther, "/")
 	}
-	_, ok := session.Values["balance"].(float64)
+	admin, ok := session.Values["admin"].(bool) 
 	if !ok {
 		return tmpl.ExecuteTemplate(c.Response().Writer, "index", nil)
 	}
-	money := session.Values["balance"].(float64)
-	return tmpl.ExecuteTemplate(c.Response().Writer, "index", money)
+	_, ok = session.Values["balance"].(float64)
+	if !ok {
+		return tmpl.ExecuteTemplate(c.Response().Writer, "index",struct {
+			IsAdmin bool
+			Balance  float64
+		  }{
+			IsAdmin: admin,
+			Balance: 0.0,
+		  }) 
+	}
+	//money := session.Values["balance"].(float64)
+	return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
+		IsAdmin bool
+		Balance  float64
+	  }{
+		IsAdmin: admin,
+		Balance: session.Values["balance"].(float64),
+	  })
 }
 
 func (eu *EntityUser) SignUp(c echo.Context) error {
@@ -107,7 +124,7 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to sign up")
 	}
 	user.Password = tempPassword
-	userID, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
+	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-v: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
@@ -117,7 +134,7 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 	session.Values["id"] = userID.String()
 	session.Values["login"] = user.Login
 	session.Values["password"] = user.Password
-	session.Values["admin"] = user.Admin
+	session.Values["admin"] = isAdmin
 	session.Values["balance"] = 0.0
 	if err = session.Save(c.Request(), c.Response()); err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
@@ -147,7 +164,7 @@ func (eu *EntityUser) Login(c echo.Context) error {
 			"errorMsg": "The fields have not been validated",
 		})
 	}
-	userID, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
+	userID,isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
@@ -157,7 +174,7 @@ func (eu *EntityUser) Login(c echo.Context) error {
 	session.Values["id"] = userID.String()
 	session.Values["login"] = user.Login
 	session.Values["password"] = user.Password
-	session.Values["admin"] = user.Admin
+	session.Values["admin"] = isAdmin
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
@@ -319,6 +336,64 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	if err != nil {
 		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
 		return c.Redirect(http.StatusSeeOther, "/index")
+	}
+	return c.Redirect(http.StatusSeeOther, "/index")
+}
+
+func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
+	tmpl, err := template.ParseFiles("templates/index/index.html")
+	if err != nil {
+		return template.ExecError{Name: "index", Err: err}
+	}
+	var user model.User
+	user.Login = c.FormValue("login")
+	user.Password = c.FormValue("password")
+	err = eu.validate.StructCtx(c.Request().Context(), user)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"Login":    user.Login,
+			"Password": user.Password,
+		}).Errorf("Handler-SignUp: error: %v", err)
+		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
+			"errorMsg": "The fields have not been validated",
+		})
+	}
+	err = eu.srvcUser.SignUpAdmin(c.Request().Context(), &user)
+	if err != nil {
+		logrus.Errorf("EntityUser-SignUpAdmin: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to sign up admin")
+	}
+	return c.Redirect(http.StatusSeeOther, "/index")
+}
+
+func (eu *EntityUser) DeleteByID(c echo.Context) error {
+	tmpl, err := template.ParseFiles("templates/index/index.html")
+	if err != nil {
+		return template.ExecError{Name: "index", Err: err}
+	}
+	store := NewRedisStore(eu.cfg)
+	cookie, err := c.Cookie("SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		return echo.ErrUnauthorized
+	}
+	session, _ := store.Get(c.Request(), cookie.Name)
+	if len(session.Values) == 0 {
+		return c.String(http.StatusOK, "empty result")
+	}
+	if !session.Values["admin"].(bool) {
+		return c.String(http.StatusMethodNotAllowed, "you`re not admin")
+	}
+	id, err := uuid.Parse(c.FormValue("profileid"))
+	if err != nil {
+		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
+			"errorMsg": "Invalid id",
+		})
+	}
+	err = eu.srvcUser.DeleteAccount(c.Request().Context(), id)
+	if err != nil {
+		logrus.Errorf("EntityUser-DeleteByID-DeleteAccount: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete account")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }

@@ -12,7 +12,7 @@ import (
 
 type UserRepository interface {
 	SignUp(ctx context.Context, user *model.User) error
-	GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, string, error)
+	GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, string, bool, error)
 	DeleteAccount(ctx context.Context, id uuid.UUID) error
 }
 
@@ -31,7 +31,6 @@ func NewUserService(uRep UserRepository, cfg config.Variables) *UserService {
 
 func (us *UserService) SignUp(ctx context.Context, user *model.User) error {
 	user.ID = uuid.New()
-	user.Admin = false
 	var err error
 	user.Password, err = us.GenerateHash(user.Password)
 	if err != nil {
@@ -44,15 +43,24 @@ func (us *UserService) SignUp(ctx context.Context, user *model.User) error {
 	return nil
 }
 
-func (us *UserService) GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, error) {
-	userID, passwordHash, err := us.uRep.GetByLogin(ctx, user)
+func (us *UserService) SignUpAdmin(ctx context.Context, user *model.User) error {
+	user.Admin = true
+	err := us.SignUp(ctx, user)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("UserService-GetByLogin: error: %w", err)
+		return fmt.Errorf("UserService-SignUpAdmin: error: %w", err)
+	}
+	return nil
+}
+
+func (us *UserService) GetByLogin(ctx context.Context, user *model.User) (uuid.UUID, bool, error) {
+	userID, passwordHash, admin, err := us.uRep.GetByLogin(ctx, user)
+	if err != nil {
+		return uuid.Nil, false, fmt.Errorf("UserService-GetByLogin: error: %w", err)
 	}
 	if !us.CheckPasswordHash(user.Password, passwordHash) {
-		return uuid.Nil, fmt.Errorf("UserService-GetByLogin: wrong password")
+		return uuid.Nil, false, fmt.Errorf("UserService-GetByLogin: wrong password")
 	}
-	return userID, nil
+	return userID, admin, nil
 }
 
 func (us *UserService) DeleteAccount(ctx context.Context, id uuid.UUID) error {

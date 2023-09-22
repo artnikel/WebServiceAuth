@@ -85,5 +85,7 @@ func main() {
 	e.GET("/getbalance", hndl.GetBalance)
 	e.POST("/deposit", hndl.BalanceOperation)
 	e.POST("/buy", hndl.BuyProducts)
+	e.POST("/signupadmin", hndl.SignUpAdmin)
+	e.POST("/deletebyid", hndl.DeleteByID)
 	e.Logger.Fatal(e.Start(":8900"))
 }
