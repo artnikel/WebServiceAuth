@@ -48,3 +48,11 @@ body {
 .root-link {
     color: green;
 }
+
+.by-link {
+    color: gray;
+}
+
+.github-link {
+    color: #635d5d;
+}

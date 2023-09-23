@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	"html/template"
 	"log"
 	"net/http"
 	"strconv"
+	"text/template"
 
 	"github.com/artnikel/WebServiceAuth/internal/config"
 	"github.com/artnikel/WebServiceAuth/internal/model"
@@ -32,6 +32,7 @@ type BalanceService interface {
 type CartService interface {
 	AddCartItems(ctx context.Context, profileid string, carts []model.CartItem) error
 	ShowCart(ctx context.Context, profileid string) ([]model.CartItem, error)
+	DeleteCart(ctx context.Context, profileid string) error
 }
 
 type EntityUser struct {
@@ -95,28 +96,34 @@ func (eu *EntityUser) Index(c echo.Context) error {
 		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ShowCart cart")
 	}
-	//ItemsData := PageData{Items: items}
+	totalSum := 0.0
+	for _, item := range items {
+		totalSum += (item.ProductPrice * float64(item.Quantity))
+	}
 	_, ok = session.Values["balance"].(float64)
 	if !ok {
 		return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
-			IsAdmin bool
-			Balance float64
+			IsAdmin   bool
+			Balance   float64
 			ItemsData PageData
-			
+			TotalSum  float64
 		}{
-			IsAdmin: admin,
-			Balance: 0.0,
+			IsAdmin:   admin,
+			Balance:   0.0,
 			ItemsData: PageData{Items: items},
+			TotalSum:  totalSum,
 		})
 	}
 	return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
-		IsAdmin bool
-		Balance float64
+		IsAdmin   bool
+		Balance   float64
 		ItemsData PageData
+		TotalSum  float64
 	}{
-		IsAdmin: admin,
-		Balance: session.Values["balance"].(float64),
+		IsAdmin:   admin,
+		Balance:   session.Values["balance"].(float64),
 		ItemsData: PageData{Items: items},
+		TotalSum:  totalSum,
 	})
 }
 
@@ -355,8 +362,8 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
-	id := session.Values["id"].(string)
-	idUUID, err := uuid.Parse(id)
+	profileid := session.Values["id"].(string)
+	idUUID, err := uuid.Parse(profileid)
 	if err != nil {
 		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
 			"errorMsg": "Invalid id",
@@ -382,8 +389,13 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	}
 	err = eu.srvcBal.BalanceOperation(c.Request().Context(), balance)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-BuyProducts-BalanceOperation: err:%v", err)
 		return c.Redirect(http.StatusSeeOther, "/index")
+	}
+	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
+	if err != nil {
+		logrus.Errorf("EntityUser-BuyProducts-DeleteCart: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -496,34 +508,27 @@ func (eu *EntityUser) SaveCart(c echo.Context) error {
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
-// func (eu *EntityUser) ShowCart(c echo.Context) error {
-// 	type PageData struct {
-// 		Items []model.CartItem
-// 	}
-// 	tmpl, err := template.ParseFiles("templates/index/index.html")
-// 	if err != nil {
-// 		return echo.ErrNotFound
-// 	}
-// 	store := NewRedisStore(eu.cfg)
-// 	cookie, err := c.Cookie("SESSION_ID")
-// 	if err != nil {
-// 		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
-// 		return echo.ErrUnauthorized
-// 	}
-// 	session, err := store.Get(c.Request(), cookie.Name)
-// 	if err != nil {
-// 		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
-// 		return echo.ErrNotFound
-// 	}
-// 	if len(session.Values) == 0 {
-// 		return c.String(http.StatusOK, "empty result")
-// 	}
-// 	profileid := session.Values["id"].(string)
-// 	items, err := eu.srvcCart.ShowCart(c.Request().Context(), profileid)
-// 	if err != nil {
-// 		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
-// 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ShowCart cart")
-// 	}
-// 	data := PageData{Items: items}
-// 	return tmpl.ExecuteTemplate(c.Response().Writer, "index", data)
-// }
+func (eu *EntityUser) ClearCart(c echo.Context) error {
+	store := NewRedisStore(eu.cfg)
+	cookie, err := c.Cookie("SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-ClearCart: err:%v", err)
+		return echo.ErrUnauthorized
+	}
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-ClearCart: err:%v", err)
+		return echo.ErrNotFound
+	}
+	if len(session.Values) == 0 {
+		return c.String(http.StatusOK, "empty result")
+	}
+	profileid := session.Values["id"].(string)
+	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
+	if err != nil {
+		logrus.Errorf("EntityUser-ClearCart-DeleteCart: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete cart")
+	}
+	return c.Redirect(http.StatusSeeOther, "/index")
+}
+

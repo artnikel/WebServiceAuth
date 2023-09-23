@@ -16,11 +16,13 @@
   <header>
     <div class="d-flex flex-column flex-md-row align-items-center pb-3 mb-4 border-bottom">
       <a href="/index" class="d-flex align-items-center link-body-emphasis text-decoration-none">
-        <span class="fs-1">Electronics Store</span>
+        <span class="fs-1">Electronics Store</span> 
       </a>
+      <p class="by-link">ㅤby</p>
+        <p><a class="github-link" href="https://github.com/artnikel">@artnikel</a></p>
       <ul class="nav nav-pills mt-2 mt-md-0 ms-md-auto">
         <li class="nav-item">
-          <a class="nav-link fs-4" href="#" data-toggle="modal" data-target="#cartModal">Cart</a>
+          <button id="cartLink" class="nav-link fs-4" data-toggle="modal" data-target="#cartModal">Cart</button>
         </li>
         <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle fs-4" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Account</a>
@@ -58,25 +60,28 @@
             </div>
             <div class="modal-body">
               <ul id="cartItemList">
-                <!-- {{if .ItemsData.Items}}
-                  {{ $totalPrice := 0 }}
-                  {{range .ItemsData.Items}}
-                    <li>{{.ProductName}} - ${{.ProductPrice}} x {{.Quantity}}</li>
-                    {{ $totalPrice = add $totalPrice (mul .ProductPrice .Quantity) }}
-                  {{end}}
-                  <li>Total Price: ${{printf "%.2f" $totalPrice}}</li>
-                {{end}} -->
+                {{if .ItemsData.Items}}
+                  <ul id="cartItemList">
+                    {{range .ItemsData.Items}}
+                      <li><img src="{{.ProductImage}}" width="60" height="50">{{.ProductName}} - ${{.ProductPrice}} x {{.Quantity}}</li>
+                    {{end}}
+                  </ul>
+                {{end}}              
               </ul>
               <hr>
-              <p id="totalPriceModal">Total Price: $0.00</p>
+              <p id="totalPriceModal">Total Price: ${{.TotalSum}}</p>
             </div>
             <div class="modal-footer">
+              <p style="color: gray;">• before saving your cart, make sure that your cart does not already contain any items (check this with "Refresh" button)</p>
               <div class="modal"></div>
-                <!-- <a type="button" class="btn btn-success" href="/index">Refresh</a> -->
-                <form action="/savecart" method="post">
-                <button type="submit" id="saveButton" class="btn btn-success">Save Cart</button>
+                <form action="/clearcart" method="post">
+                <button type="submit" class="btn btn-outline-success">Clear Cart</button>
                 </form>
-                <button type="button" id="buyButton" class="btn btn-success" onclick="buyWithPost()">Buy</button>
+                <button id="refreshCartButton" type="submit" class="btn btn-outline-success" onclick="refreshCart()">Refresh Cart</button>
+                <form action="/savecart" method="post">
+                <button type="submit" id="saveButton" class="btn btn-outline-success">Save Cart</button>
+                </form>
+                <button type="button" id="buyButton" class="btn btn-success" onclick="buyWithPost()">Buy Items</button>
             </div>
           </div>
         </div>

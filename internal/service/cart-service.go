@@ -34,9 +34,13 @@ func (cs *CartService) ShowCart(ctx context.Context, profileid string) ([]model.
 	if err != nil {
 		return nil, fmt.Errorf("RedisRepository-ShowCart-Get: error: %w", err)
 	}
-	// err = cs.cartRep.Delete(ctx,profileid)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("RedisRepository-ShowCart-Delete: error: %w", err)
-	// }
 	return carts, nil
+}
+
+func (cs *CartService) DeleteCart(ctx context.Context, profileid string) error {
+	err := cs.cartRep.Delete(ctx, profileid)
+	if err != nil {
+		return fmt.Errorf("RedisRepository-ShowCart-Delete: error: %w", err)
+	}
+	return nil
 }

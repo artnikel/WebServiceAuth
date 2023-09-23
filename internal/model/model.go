@@ -19,7 +19,7 @@ type Balance struct {
 }
 
 type CartItem struct {
-	ProductID    string  `json:"product_id"`
+	ProductImage    string  `json:"product_image"`
 	ProductName  string  `json:"product_name"`
 	ProductPrice float64 `json:"product_price"`
 	Quantity     int     `json:"quantity"`

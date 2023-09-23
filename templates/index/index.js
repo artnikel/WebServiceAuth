@@ -8,8 +8,6 @@ $(document).ready(function() {
     });
   });
 
-let userBalance = 0; 
-
 let cart = {};
 
 document.querySelectorAll('[data-product-id]').forEach(button => {
@@ -61,13 +59,13 @@ function getProductInfo(productId) {
     return {
       name: 'LOGITECH G102 LIGHTSYNC',
       price: '$29.99',
-      image: '/templates/index/images/logimouse1.jpg'
+     image: '/templates/index/images/logimouse1.jpg'
     };
   } else if (productId === 'bloody-mouse') {
     return {
       name: 'A4TECH BLOODY R90 PLUS',
       price: '$54.99',
-      image: '/templates/index/images/bloodymouse1.jpg'
+     image: '/templates/index/images/bloodymouse1.jpg'
     };
   } else if (productId === 'asus-headphones') {
     return {
@@ -88,8 +86,8 @@ function getProductInfo(productId) {
       image: '/templates/index/images/jblheadphones1.jpg'
     };
   }
-
 }
+
 function updateCartDisplay() {
   const cartItemList = document.getElementById('cartItemList');
   cartItemList.innerHTML = '';
@@ -118,41 +116,30 @@ function updateCartDisplay() {
   totalPriceModal.textContent = `Total Price: $${totalPrice.toFixed(2)}`;
 }
 
-
-
 document.getElementById('cartModal').addEventListener('click', () => {
   updateCartDisplay();
 });
 
-function calculateTotalAmount() {
-  let total = 0;
-  for (const productId in cart) {
-    const product = cart[productId];
-    total += product.price * product.quantity;
-  }
-  return total;
-}
-
 document.getElementById('buyButton').addEventListener('click', () => {
-  const totalPrice = calculateTotalAmount(); 
-  const data = { totalPrice }; 
+  const totalPriceElement = document.getElementById('totalPriceModal');
+  const totalPriceText = totalPriceElement.textContent;
+  const totalPrice = parseFloat(totalPriceText.match(/\d+\.\d+/)[0]); 
 
-  if (totalPrice === 0) {
-    alert('Your cart is empty. Add items to the cart before making a purchase.');
-    window.location.href = "/index"
+  if (isNaN(totalPrice) || totalPrice === 0) {
+    alert('Your cart is empty or the total price is invalid. Add items to the cart before making a purchase.');
     return;
   }
-
   fetch('/buy', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data), 
+    body: JSON.stringify({ totalPrice }),
   })
     .then((response) => response.json())
     .then((data) => {
       if (data.success) {
+        alert('Purchase successfully completed');
       } else {
         alert('Unable to complete the purchase. Not enough money');
       }
@@ -161,6 +148,7 @@ document.getElementById('buyButton').addEventListener('click', () => {
       console.error('Error:', error);
     });
 });
+
 
 function clearCart() {
   cart = {}; 
@@ -182,7 +170,7 @@ document.getElementById('saveButton').addEventListener('click', () => {
     const product = cart[productId];
     const productPrice = typeof product.price === 'string' ? parseFloat(product.price.replace('$', '')) : product.price;
     cartItems.push({
-      product_id: productId,
+      product_image: product.image, 
       product_name: product.name,
       product_price: productPrice,
       quantity: product.quantity
@@ -203,3 +191,11 @@ document.getElementById('saveButton').addEventListener('click', () => {
     console.error('Error:', error);
   });
 });
+
+function refreshCart(){
+  const cartLink = document.getElementById('cartLink');
+  cartLink.click();
+  window.location.href = "/index"
+}
+
+
