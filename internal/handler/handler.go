@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	"github.com/artnikel/WebServiceAuth/internal/config"
 	"github.com/artnikel/WebServiceAuth/internal/model"
@@ -29,15 +29,21 @@ type BalanceService interface {
 	GetBalance(ctx context.Context, profileID uuid.UUID) (float64, error)
 }
 
+type CartService interface {
+	AddCartItems(ctx context.Context, profileid string, carts []model.CartItem) error
+	ShowCart(ctx context.Context, profileid string) ([]model.CartItem, error)
+}
+
 type EntityUser struct {
 	srvcUser UserService
 	srvcBal  BalanceService
+	srvcCart CartService
 	validate *validator.Validate
 	cfg      config.Variables
 }
 
-func NewEntityUser(srvcUser UserService, srvcBal BalanceService, validate *validator.Validate, cfg config.Variables) *EntityUser {
-	return &EntityUser{srvcUser: srvcUser, srvcBal: srvcBal, validate: validate, cfg: cfg}
+func NewEntityUser(srvcUser UserService, srvcBal BalanceService, srvcCart CartService, validate *validator.Validate, cfg config.Variables) *EntityUser {
+	return &EntityUser{srvcUser: srvcUser, srvcBal: srvcBal, srvcCart: srvcCart, validate: validate, cfg: cfg}
 }
 
 func NewRedisStore(cfg config.Variables) *redistore.RediStore {
@@ -51,16 +57,19 @@ func NewRedisStore(cfg config.Variables) *redistore.RediStore {
 func (eu *EntityUser) Auth(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/auth/auth.html")
 	if err != nil {
-		return template.ExecError{Name: "auth", Err: err}
+		return echo.ErrNotFound
 	}
 	tmpl.ExecuteTemplate(c.Response().Writer, "auth", nil)
 	return nil
 }
 
 func (eu *EntityUser) Index(c echo.Context) error {
+	type PageData struct {
+		Items []model.CartItem
+	}
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -68,38 +77,53 @@ func (eu *EntityUser) Index(c echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, "/")
 	}
 	store := NewRedisStore(eu.cfg)
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-Index: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.Redirect(http.StatusSeeOther, "/")
 	}
-	admin, ok := session.Values["admin"].(bool) 
+	profileid := session.Values["id"].(string)
+	admin, ok := session.Values["admin"].(bool)
 	if !ok {
 		return tmpl.ExecuteTemplate(c.Response().Writer, "index", nil)
 	}
+	items, err := eu.srvcCart.ShowCart(c.Request().Context(), profileid)
+	if err != nil {
+		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ShowCart cart")
+	}
+	//ItemsData := PageData{Items: items}
 	_, ok = session.Values["balance"].(float64)
 	if !ok {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index",struct {
+		return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
 			IsAdmin bool
-			Balance  float64
-		  }{
+			Balance float64
+			ItemsData PageData
+			
+		}{
 			IsAdmin: admin,
 			Balance: 0.0,
-		  }) 
+			ItemsData: PageData{Items: items},
+		})
 	}
-	//money := session.Values["balance"].(float64)
 	return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
 		IsAdmin bool
-		Balance  float64
-	  }{
+		Balance float64
+		ItemsData PageData
+	}{
 		IsAdmin: admin,
 		Balance: session.Values["balance"].(float64),
-	  })
+		ItemsData: PageData{Items: items},
+	})
 }
 
 func (eu *EntityUser) SignUp(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/auth/auth.html")
 	if err != nil {
-		return template.ExecError{Name: "auth", Err: err}
+		return echo.ErrNotFound
 	}
 	var user model.User
 	if err := c.Bind(&user); err != nil {
@@ -126,18 +150,22 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 	user.Password = tempPassword
 	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
-		logrus.Errorf("EntityUser-v: err:%v", err)
+		logrus.Errorf("EntityUser-SignUp-GetByLogin: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
 	}
 	store := NewRedisStore(eu.cfg)
-	session, _ := store.Get(c.Request(), "SESSION_ID")
+	session, err := store.Get(c.Request(), "SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-SignUp: err:%v", err)
+		return echo.ErrNotFound
+	}
 	session.Values["id"] = userID.String()
 	session.Values["login"] = user.Login
 	session.Values["password"] = user.Password
 	session.Values["admin"] = isAdmin
 	session.Values["balance"] = 0.0
 	if err = session.Save(c.Request(), c.Response()); err != nil {
-		logrus.Errorf("EntityUser-Login: err:%v", err)
+		logrus.Errorf("EntityUser-SignUp: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
@@ -146,7 +174,7 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 func (eu *EntityUser) Login(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/auth/auth.html")
 	if err != nil {
-		return template.ExecError{Name: "auth", Err: err}
+		return echo.ErrNotFound
 	}
 	var user model.User
 	if err := c.Bind(&user); err != nil {
@@ -164,13 +192,17 @@ func (eu *EntityUser) Login(c echo.Context) error {
 			"errorMsg": "The fields have not been validated",
 		})
 	}
-	userID,isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
+	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
 	}
 	store := NewRedisStore(eu.cfg)
-	session, _ := store.Get(c.Request(), "SESSION_ID")
+	session, err := store.Get(c.Request(), "SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-Login: err:%v", err)
+		return echo.ErrNotFound
+	}
 	session.Values["id"] = userID.String()
 	session.Values["login"] = user.Login
 	session.Values["password"] = user.Password
@@ -185,15 +217,19 @@ func (eu *EntityUser) Login(c echo.Context) error {
 func (eu *EntityUser) DeleteAccount(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
 		return echo.ErrUnauthorized
 	}
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
@@ -220,7 +256,7 @@ func (eu *EntityUser) DeleteAccount(c echo.Context) error {
 func (eu *EntityUser) GetBalance(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
@@ -228,7 +264,11 @@ func (eu *EntityUser) GetBalance(c echo.Context) error {
 		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
 		return echo.ErrUnauthorized
 	}
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
@@ -255,15 +295,19 @@ func (eu *EntityUser) GetBalance(c echo.Context) error {
 func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
 		return echo.ErrUnauthorized
 	}
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
@@ -286,7 +330,7 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	}
 	err = eu.srvcBal.BalanceOperation(c.Request().Context(), balance)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to made balance operation")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
@@ -295,15 +339,19 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
 		return echo.ErrUnauthorized
 	}
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
@@ -322,11 +370,11 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	}
 	money, err := eu.srvcBal.GetBalance(c.Request().Context(), idUUID)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("EntityUser-BuyProducts-GetBalance: err:%v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get balance")
 	}
 	if decimal.NewFromFloat(money).Cmp(decimal.NewFromFloat(data.TotalPrice)) == -1 {
-		return c.JSON(http.StatusBadRequest,"Not enough money")
+		return c.JSON(http.StatusBadRequest, "Not enough money")
 	}
 	balance := &model.Balance{
 		ProfileID: idUUID,
@@ -343,7 +391,7 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	var user model.User
 	user.Login = c.FormValue("login")
@@ -353,7 +401,7 @@ func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
 		logrus.WithFields(logrus.Fields{
 			"Login":    user.Login,
 			"Password": user.Password,
-		}).Errorf("Handler-SignUp: error: %v", err)
+		}).Errorf("Handler-SignUpAdmin: error: %v", err)
 		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
 			"errorMsg": "The fields have not been validated",
 		})
@@ -369,7 +417,7 @@ func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
 func (eu *EntityUser) DeleteByID(c echo.Context) error {
 	tmpl, err := template.ParseFiles("templates/index/index.html")
 	if err != nil {
-		return template.ExecError{Name: "index", Err: err}
+		return echo.ErrNotFound
 	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
@@ -377,7 +425,11 @@ func (eu *EntityUser) DeleteByID(c echo.Context) error {
 		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
 		return echo.ErrUnauthorized
 	}
-	session, _ := store.Get(c.Request(), cookie.Name)
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		return echo.ErrNotFound
+	}
 	if len(session.Values) == 0 {
 		return c.String(http.StatusOK, "empty result")
 	}
@@ -393,7 +445,85 @@ func (eu *EntityUser) DeleteByID(c echo.Context) error {
 	err = eu.srvcUser.DeleteAccount(c.Request().Context(), id)
 	if err != nil {
 		logrus.Errorf("EntityUser-DeleteByID-DeleteAccount: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete account")
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete another account")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
+
+func (eu *EntityUser) Logout(c echo.Context) error {
+	store := NewRedisStore(eu.cfg)
+	cookie, err := c.Cookie("SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-Logout: err:%v", err)
+		return echo.ErrUnauthorized
+	}
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-Logout: err:%v", err)
+		return echo.ErrNotFound
+	}
+	session.Options.MaxAge = -1
+	session.Save(c.Request(), c.Response().Writer)
+	return c.Redirect(http.StatusSeeOther, "/")
+}
+
+func (eu *EntityUser) SaveCart(c echo.Context) error {
+	var cartItems []model.CartItem
+	if err := c.Bind(&cartItems); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	store := NewRedisStore(eu.cfg)
+	cookie, err := c.Cookie("SESSION_ID")
+	if err != nil {
+		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+		return echo.ErrUnauthorized
+	}
+	session, err := store.Get(c.Request(), cookie.Name)
+	if err != nil {
+		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+		return echo.ErrNotFound
+	}
+	if len(session.Values) == 0 {
+		return c.String(http.StatusOK, "empty result")
+	}
+	profileid := session.Values["id"].(string)
+
+	err = eu.srvcCart.AddCartItems(c.Request().Context(), profileid, cartItems)
+	if err != nil {
+		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save cart")
+	}
+	return c.Redirect(http.StatusSeeOther, "/index")
+}
+
+// func (eu *EntityUser) ShowCart(c echo.Context) error {
+// 	type PageData struct {
+// 		Items []model.CartItem
+// 	}
+// 	tmpl, err := template.ParseFiles("templates/index/index.html")
+// 	if err != nil {
+// 		return echo.ErrNotFound
+// 	}
+// 	store := NewRedisStore(eu.cfg)
+// 	cookie, err := c.Cookie("SESSION_ID")
+// 	if err != nil {
+// 		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+// 		return echo.ErrUnauthorized
+// 	}
+// 	session, err := store.Get(c.Request(), cookie.Name)
+// 	if err != nil {
+// 		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+// 		return echo.ErrNotFound
+// 	}
+// 	if len(session.Values) == 0 {
+// 		return c.String(http.StatusOK, "empty result")
+// 	}
+// 	profileid := session.Values["id"].(string)
+// 	items, err := eu.srvcCart.ShowCart(c.Request().Context(), profileid)
+// 	if err != nil {
+// 		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
+// 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ShowCart cart")
+// 	}
+// 	data := PageData{Items: items}
+// 	return tmpl.ExecuteTemplate(c.Response().Writer, "index", data)
+// }

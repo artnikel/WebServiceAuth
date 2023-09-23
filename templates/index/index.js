@@ -51,13 +51,50 @@ function getProductInfo(productId) {
       price: '$499.99',
       image: '/templates/index/images/lenovolaptop1.jpeg'
     };
+  } else if (productId === 'razer-mouse') {
+    return {
+      name: 'RAZER DEATHADDER ESSENTIAL',
+      price: '$34.99',
+      image: '/templates/index/images/razermouse1.jpg'
+    };
+  } else if (productId === 'logi-mouse') {
+    return {
+      name: 'LOGITECH G102 LIGHTSYNC',
+      price: '$29.99',
+      image: '/templates/index/images/logimouse1.jpg'
+    };
+  } else if (productId === 'bloody-mouse') {
+    return {
+      name: 'A4TECH BLOODY R90 PLUS',
+      price: '$54.99',
+      image: '/templates/index/images/bloodymouse1.jpg'
+    };
+  } else if (productId === 'asus-headphones') {
+    return {
+      name: 'ASUS TUF GAMING H3',
+      price: '$74.99',
+      image: '/templates/index/images/asusheadphones1.jpg'
+    };
+  } else if (productId === 'razer-headphones') {
+    return {
+      name: 'RAZER BLACKSHARK V2 PRO',
+      price: '$169.99',
+      image: '/templates/index/images/razerheadphones1.jpg'
+    };
+  } else if (productId === 'jbl-headphones') {
+    return {
+      name: 'JBL QUANTUM 100',
+      price: '$49.99',
+      image: '/templates/index/images/jblheadphones1.jpg'
+    };
   }
+
 }
 function updateCartDisplay() {
   const cartItemList = document.getElementById('cartItemList');
-  cartItemList.innerHTML = ''; 
+  cartItemList.innerHTML = '';
 
-  let totalPrice = 0; 
+  let totalPrice = 0;
 
   for (const productId in cart) {
     const product = cart[productId];
@@ -65,8 +102,8 @@ function updateCartDisplay() {
 
     const productImage = document.createElement('img');
     productImage.src = product.image;
-    productImage.width = 60; 
-    productImage.height = 50; 
+    productImage.width = 60;
+    productImage.height = 50;
 
     const productDescription = document.createTextNode(`${product.name} - $${product.price} x ${product.quantity}`);
 
@@ -74,12 +111,14 @@ function updateCartDisplay() {
     listItem.appendChild(productDescription);
 
     cartItemList.appendChild(listItem);
-    totalPrice += parseFloat(product.price) * product.quantity;
+    totalPrice += product.price * product.quantity;
   }
 
   const totalPriceModal = document.getElementById('totalPriceModal');
   totalPriceModal.textContent = `Total Price: $${totalPrice.toFixed(2)}`;
 }
+
+
 
 document.getElementById('cartModal').addEventListener('click', () => {
   updateCartDisplay();
@@ -91,7 +130,6 @@ function calculateTotalAmount() {
     const product = cart[productId];
     total += product.price * product.quantity;
   }
-
   return total;
 }
 
@@ -136,3 +174,32 @@ function buyWithPost() {
   document.body.appendChild(form);
   form.submit();
 }
+
+document.getElementById('saveButton').addEventListener('click', () => {
+  const cartItems = [];
+
+  for (const productId in cart) {
+    const product = cart[productId];
+    const productPrice = typeof product.price === 'string' ? parseFloat(product.price.replace('$', '')) : product.price;
+    cartItems.push({
+      product_id: productId,
+      product_name: product.name,
+      product_price: productPrice,
+      quantity: product.quantity
+    });
+  }
+
+  fetch('/savecart', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(cartItems),
+  })
+  .then((response) => response.text())
+  .then((data) => {
+  })
+  .catch((error) => {
+    console.error('Error:', error);
+  });
+});

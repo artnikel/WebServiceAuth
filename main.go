@@ -67,9 +67,11 @@ func main() {
 		}
 	}()
 	pgRep := repository.NewPgRepository(dbpool)
+	cartRep := repository.NewRepositoryRedis(redisClient)
 	userServ := service.NewUserService(pgRep, *cfg)
 	balServ := service.NewBalanceService(pgRep)
-	hndl := handler.NewEntityUser(userServ, balServ, v, *cfg)
+	cartServ := service.NewCartService(cartRep)
+	hndl := handler.NewEntityUser(userServ, balServ, cartServ, v, *cfg)
 	e := echo.New()
 	e.Static("/templates", "templates")
 	e.Use(middleware.Logger())
@@ -87,5 +89,8 @@ func main() {
 	e.POST("/buy", hndl.BuyProducts)
 	e.POST("/signupadmin", hndl.SignUpAdmin)
 	e.POST("/deletebyid", hndl.DeleteByID)
+	e.POST("/logout", hndl.Logout)
+	e.POST("/savecart", hndl.SaveCart)
+	//e.GET("/showcart", hndl.ShowCart)
 	e.Logger.Fatal(e.Start(":8900"))
 }

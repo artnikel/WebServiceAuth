@@ -18,8 +18,9 @@ type Balance struct {
 	Operation decimal.Decimal `json:"operation" validate:"required"`
 }
 
-type Product struct {
-	ProductID uuid.UUID
-	Name      string
-	Price     decimal.Decimal
+type CartItem struct {
+	ProductID    string  `json:"product_id"`
+	ProductName  string  `json:"product_name"`
+	ProductPrice float64 `json:"product_price"`
+	Quantity     int     `json:"quantity"`
 }
