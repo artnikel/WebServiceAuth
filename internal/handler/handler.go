@@ -60,8 +60,7 @@ func (eu *EntityUser) Auth(c echo.Context) error {
 	if err != nil {
 		return echo.ErrNotFound
 	}
-	tmpl.ExecuteTemplate(c.Response().Writer, "auth", nil)
-	return nil
+	return tmpl.ExecuteTemplate(c.Response().Writer, "auth", nil)
 }
 
 func (eu *EntityUser) Index(c echo.Context) error {
@@ -94,25 +93,15 @@ func (eu *EntityUser) Index(c echo.Context) error {
 	items, err := eu.srvcCart.ShowCart(c.Request().Context(), profileid)
 	if err != nil {
 		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to ShowCart cart")
+		return c.String(http.StatusInternalServerError, "failed to show cart")
 	}
 	totalSum := 0.0
 	for _, item := range items {
 		totalSum += (item.ProductPrice * float64(item.Quantity))
 	}
-	_, ok = session.Values["balance"].(float64)
+	balance, ok := session.Values["balance"].(float64)
 	if !ok {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
-			IsAdmin   bool
-			Balance   float64
-			ItemsData PageData
-			TotalSum  float64
-		}{
-			IsAdmin:   admin,
-			Balance:   0.0,
-			ItemsData: PageData{Items: items},
-			TotalSum:  totalSum,
-		})
+		balance = 0.0
 	}
 	return tmpl.ExecuteTemplate(c.Response().Writer, "index", struct {
 		IsAdmin   bool
@@ -121,7 +110,7 @@ func (eu *EntityUser) Index(c echo.Context) error {
 		TotalSum  float64
 	}{
 		IsAdmin:   admin,
-		Balance:   session.Values["balance"].(float64),
+		Balance:   balance,
 		ItemsData: PageData{Items: items},
 		TotalSum:  totalSum,
 	})
@@ -152,7 +141,9 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 	err = eu.srvcUser.SignUp(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-SignUp: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to sign up")
+		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
+			"errorMsg": "Failed to sign up",
+		})
 	}
 	user.Password = tempPassword
 	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
@@ -202,7 +193,9 @@ func (eu *EntityUser) Login(c echo.Context) error {
 	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
+		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
+			"errorMsg": "Wrong login or password",
+		})
 	}
 	store := NewRedisStore(eu.cfg)
 	session, err := store.Get(c.Request(), "SESSION_ID")
@@ -216,16 +209,12 @@ func (eu *EntityUser) Login(c echo.Context) error {
 	session.Values["admin"] = isAdmin
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
 		logrus.Errorf("EntityUser-Login: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
+		return c.String(http.StatusInternalServerError, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
 func (eu *EntityUser) DeleteAccount(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -243,28 +232,23 @@ func (eu *EntityUser) DeleteAccount(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid id",
-		})
+		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	err = eu.srvcUser.DeleteAccount(c.Request().Context(), idUUID)
 	if err != nil {
 		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete account")
+		c.String(http.StatusInternalServerError, "failed to delete account")
 	}
 	session.Options.MaxAge = -1
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
 		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
+		return c.String(http.StatusInternalServerError, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }
 
 func (eu *EntityUser) GetBalance(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -282,28 +266,23 @@ func (eu *EntityUser) GetBalance(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid id",
-		})
+		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	money, err := eu.srvcBal.GetBalance(c.Request().Context(), idUUID)
 	if err != nil {
 		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get balance")
+		return c.String(http.StatusInternalServerError, "failed to get balance")
 	}
 	session.Values["balance"] = money
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
 		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
+		return c.String(http.StatusInternalServerError, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
 func (eu *EntityUser) BalanceOperation(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -321,15 +300,13 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid id",
-		})
+		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	money, err := strconv.ParseFloat(c.FormValue("money"), 64)
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid sum of money",
-		})
+		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid sum of money")
 	}
 	balance := &model.Balance{
 		ProfileID: idUUID,
@@ -338,16 +315,12 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	err = eu.srvcBal.BalanceOperation(c.Request().Context(), balance)
 	if err != nil {
 		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to made balance operation")
+		return c.String(http.StatusInternalServerError, "failed to made balance operation")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
 func (eu *EntityUser) BuyProducts(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -365,9 +338,8 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	profileid := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(profileid)
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid id",
-		})
+		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	var data struct {
 		TotalPrice float64 `json:"totalPrice"`
@@ -378,10 +350,10 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	money, err := eu.srvcBal.GetBalance(c.Request().Context(), idUUID)
 	if err != nil {
 		logrus.Errorf("EntityUser-BuyProducts-GetBalance: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get balance")
+		return c.String(http.StatusInternalServerError, "failed to get balance")
 	}
 	if decimal.NewFromFloat(money).Cmp(decimal.NewFromFloat(data.TotalPrice)) == -1 {
-		return c.JSON(http.StatusBadRequest, "Not enough money")
+		return c.String(http.StatusBadRequest, "not enough money")
 	}
 	balance := &model.Balance{
 		ProfileID: idUUID,
@@ -395,42 +367,32 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
 	if err != nil {
 		logrus.Errorf("EntityUser-BuyProducts-DeleteCart: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete cart")
+		return c.String(http.StatusInternalServerError, "failed to delete cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
 func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	var user model.User
 	user.Login = c.FormValue("login")
 	user.Password = c.FormValue("password")
-	err = eu.validate.StructCtx(c.Request().Context(), user)
+	err := eu.validate.StructCtx(c.Request().Context(), user)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"Login":    user.Login,
 			"Password": user.Password,
 		}).Errorf("Handler-SignUpAdmin: error: %v", err)
-		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
-			"errorMsg": "The fields have not been validated",
-		})
+		return c.String(http.StatusBadRequest, "failed to validate fields")
 	}
 	err = eu.srvcUser.SignUpAdmin(c.Request().Context(), &user)
 	if err != nil {
 		logrus.Errorf("EntityUser-SignUpAdmin: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to sign up admin")
+		return c.String(http.StatusInternalServerError, "failed to sign up admin")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
 
 func (eu *EntityUser) DeleteByID(c echo.Context) error {
-	tmpl, err := template.ParseFiles("templates/index/index.html")
-	if err != nil {
-		return echo.ErrNotFound
-	}
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
@@ -450,14 +412,13 @@ func (eu *EntityUser) DeleteByID(c echo.Context) error {
 	}
 	id, err := uuid.Parse(c.FormValue("profileid"))
 	if err != nil {
-		return tmpl.ExecuteTemplate(c.Response().Writer, "index", map[string]string{
-			"errorMsg": "Invalid id",
-		})
+		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	err = eu.srvcUser.DeleteAccount(c.Request().Context(), id)
 	if err != nil {
 		logrus.Errorf("EntityUser-DeleteByID-DeleteAccount: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete another account")
+		return c.String(http.StatusInternalServerError, "failed to delete another account")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -475,7 +436,10 @@ func (eu *EntityUser) Logout(c echo.Context) error {
 		return echo.ErrNotFound
 	}
 	session.Options.MaxAge = -1
-	session.Save(c.Request(), c.Response().Writer)
+	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
+		logrus.Errorf("EntityUser-Logout: err:%v", err)
+		return c.String(http.StatusInternalServerError, "error saving session")
+	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }
 
@@ -503,7 +467,7 @@ func (eu *EntityUser) SaveCart(c echo.Context) error {
 	err = eu.srvcCart.AddCartItems(c.Request().Context(), profileid, cartItems)
 	if err != nil {
 		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to save cart")
+		return c.String(http.StatusInternalServerError, "failed to save cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -527,7 +491,7 @@ func (eu *EntityUser) ClearCart(c echo.Context) error {
 	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
 	if err != nil {
 		logrus.Errorf("EntityUser-ClearCart-DeleteCart: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete cart")
+		return c.String(http.StatusInternalServerError, "failed to delete cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }

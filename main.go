@@ -92,6 +92,5 @@ func main() {
 	e.POST("/logout", hndl.Logout)
 	e.POST("/savecart", hndl.SaveCart)
 	e.POST("/clearcart", hndl.ClearCart)
-	//e.GET("/showcart", hndl.ShowCart)
 	e.Logger.Fatal(e.Start(":8900"))
 }
