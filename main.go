@@ -32,7 +32,7 @@ func connectPostgres(connString string) (*pgxpool.Pool, error) {
 func connectRedis() (*redis.Client, error) {
 	cfg, err := config.New()
 	if err != nil {
-		log.Fatal("Could not parse config: ", err)
+		log.Fatalf("Could not parse config: %v", err)
 	}
 	client := redis.NewClient(&redis.Options{
 		Addr: cfg.RedisWebAddress,
@@ -49,11 +49,11 @@ func main() {
 	v := validator.New()
 	cfg, err := config.New()
 	if err != nil {
-		log.Fatal("Could not parse config: ", err)
+		log.Fatalf("Could not parse config: %v", err)
 	}
 	dbpool, errPool := connectPostgres(cfg.PostgresConnWebAuth)
 	if errPool != nil {
-		log.Fatal("could not construct the pool: ", errPool)
+		log.Fatalf("could not construct the pool: %v", errPool)
 	}
 	defer dbpool.Close()
 	redisClient, err := connectRedis()

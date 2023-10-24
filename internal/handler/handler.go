@@ -73,13 +73,13 @@ func (eu *EntityUser) Index(c echo.Context) error {
 	}
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-Index: err:%v", err)
+		logrus.Errorf("index %v", err)
 		return c.Redirect(http.StatusSeeOther, "/")
 	}
 	store := NewRedisStore(eu.cfg)
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-Index: err:%v", err)
+		logrus.Errorf("index %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -92,8 +92,8 @@ func (eu *EntityUser) Index(c echo.Context) error {
 	}
 	items, err := eu.srvcCart.ShowCart(c.Request().Context(), profileid)
 	if err != nil {
-		logrus.Errorf("EntityUser-ShowCart: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to show cart")
+		logrus.Errorf("index %v", err)
+		return c.String(http.StatusBadRequest, "failed to show cart")
 	}
 	totalSum := 0.0
 	for _, item := range items {
@@ -133,14 +133,14 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 		logrus.WithFields(logrus.Fields{
 			"Login":    user.Login,
 			"Password": user.Password,
-		}).Errorf("Handler-SignUp: error: %v", err)
+		}).Errorf("signUp %v", err)
 		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
 			"errorMsg": "The fields have not been validated",
 		})
 	}
 	err = eu.srvcUser.SignUp(c.Request().Context(), &user)
 	if err != nil {
-		logrus.Errorf("EntityUser-SignUp: err:%v", err)
+		logrus.Errorf("signUp %v", err)
 		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
 			"errorMsg": "Failed to sign up",
 		})
@@ -148,13 +148,13 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 	user.Password = tempPassword
 	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
-		logrus.Errorf("EntityUser-SignUp-GetByLogin: err:%v", err)
+		logrus.Errorf("signUp %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to log in")
 	}
 	store := NewRedisStore(eu.cfg)
 	session, err := store.Get(c.Request(), "SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-SignUp: err:%v", err)
+		logrus.Errorf("signUp %v", err)
 		return echo.ErrNotFound
 	}
 	session.Values["id"] = userID.String()
@@ -163,8 +163,8 @@ func (eu *EntityUser) SignUp(c echo.Context) error {
 	session.Values["admin"] = isAdmin
 	session.Values["balance"] = 0.0
 	if err = session.Save(c.Request(), c.Response()); err != nil {
-		logrus.Errorf("EntityUser-SignUp: err:%v", err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "error saving session")
+		logrus.Errorf("signUp %v", err)
+		return echo.NewHTTPError(http.StatusBadRequest, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -185,14 +185,14 @@ func (eu *EntityUser) Login(c echo.Context) error {
 		logrus.WithFields(logrus.Fields{
 			"Login":    user.Login,
 			"Password": user.Password,
-		}).Errorf("EntityUser-Login: error: %v", err)
+		}).Errorf("login %v", err)
 		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
 			"errorMsg": "The fields have not been validated",
 		})
 	}
 	userID, isAdmin, err := eu.srvcUser.GetByLogin(c.Request().Context(), &user)
 	if err != nil {
-		logrus.Errorf("EntityUser-Login: err:%v", err)
+		logrus.Errorf("login %v", err)
 		return tmpl.ExecuteTemplate(c.Response().Writer, "auth", map[string]string{
 			"errorMsg": "Wrong login or password",
 		})
@@ -200,7 +200,7 @@ func (eu *EntityUser) Login(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	session, err := store.Get(c.Request(), "SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-Login: err:%v", err)
+		logrus.Errorf("login %v", err)
 		return echo.ErrNotFound
 	}
 	session.Values["id"] = userID.String()
@@ -208,8 +208,8 @@ func (eu *EntityUser) Login(c echo.Context) error {
 	session.Values["password"] = user.Password
 	session.Values["admin"] = isAdmin
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
-		logrus.Errorf("EntityUser-Login: err:%v", err)
-		return c.String(http.StatusInternalServerError, "error saving session")
+		logrus.Errorf("login %v", err)
+		return c.String(http.StatusBadRequest, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -218,12 +218,12 @@ func (eu *EntityUser) DeleteAccount(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
+		logrus.Errorf("deleteAccount %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
+		logrus.Errorf("deleteAccount %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -232,18 +232,18 @@ func (eu *EntityUser) DeleteAccount(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
+		logrus.Errorf("deleteAccount %v", err)
 		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	err = eu.srvcUser.DeleteAccount(c.Request().Context(), idUUID)
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
-		c.String(http.StatusInternalServerError, "failed to delete account")
+		logrus.Errorf("deleteAccount %v", err)
+		return c.String(http.StatusBadRequest, "failed to delete account")
 	}
 	session.Options.MaxAge = -1
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
-		logrus.Errorf("EntityUser-DeleteAccount: err:%v", err)
-		return c.String(http.StatusInternalServerError, "error saving session")
+		logrus.Errorf("deleteAccount %v", err)
+		return c.String(http.StatusBadRequest, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }
@@ -252,12 +252,12 @@ func (eu *EntityUser) GetBalance(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("getBalance %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("getBalance %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -266,18 +266,18 @@ func (eu *EntityUser) GetBalance(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
+		logrus.Errorf("getBalance %v", err)
 		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	money, err := eu.srvcBal.GetBalance(c.Request().Context(), idUUID)
 	if err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to get balance")
+		logrus.Errorf("getBalance %v", err)
+		return c.String(http.StatusBadRequest, "failed to get balance")
 	}
 	session.Values["balance"] = money
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
-		logrus.Errorf("EntityUser-GetBalance: err:%v", err)
-		return c.String(http.StatusInternalServerError, "error saving session")
+		logrus.Errorf("getBalance %v", err)
+		return c.String(http.StatusBadRequest, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -286,12 +286,12 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		logrus.Errorf("balanceOperation %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		logrus.Errorf("balanceOperation %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -300,12 +300,12 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	id := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(id)
 	if err != nil {
-		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		logrus.Errorf("balanceOperation %v", err)
 		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	money, err := strconv.ParseFloat(c.FormValue("money"), 64)
 	if err != nil {
-		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
+		logrus.Errorf("balanceOperation %v", err)
 		return c.String(http.StatusBadRequest, "invalid sum of money")
 	}
 	balance := &model.Balance{
@@ -314,8 +314,8 @@ func (eu *EntityUser) BalanceOperation(c echo.Context) error {
 	}
 	err = eu.srvcBal.BalanceOperation(c.Request().Context(), balance)
 	if err != nil {
-		logrus.Errorf("EntityUser-BalanceOperation: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to made balance operation")
+		logrus.Errorf("balanceOperation %v", err)
+		return c.String(http.StatusBadRequest, "failed to made balance operation")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -324,12 +324,12 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
+		logrus.Errorf("buyProducts %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
+		logrus.Errorf("buyProducts %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -338,7 +338,7 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	profileid := session.Values["id"].(string)
 	idUUID, err := uuid.Parse(profileid)
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts: err:%v", err)
+		logrus.Errorf("buyProducts %v", err)
 		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	var data struct {
@@ -349,7 +349,7 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	}
 	money, err := eu.srvcBal.GetBalance(c.Request().Context(), idUUID)
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts-GetBalance: err:%v", err)
+		logrus.Errorf("buyProducts %v", err)
 		return c.String(http.StatusInternalServerError, "failed to get balance")
 	}
 	if decimal.NewFromFloat(money).Cmp(decimal.NewFromFloat(data.TotalPrice)) == -1 {
@@ -361,13 +361,13 @@ func (eu *EntityUser) BuyProducts(c echo.Context) error {
 	}
 	err = eu.srvcBal.BalanceOperation(c.Request().Context(), balance)
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts-BalanceOperation: err:%v", err)
+		logrus.Errorf("buyProducts %v", err)
 		return c.Redirect(http.StatusSeeOther, "/index")
 	}
 	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
 	if err != nil {
-		logrus.Errorf("EntityUser-BuyProducts-DeleteCart: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to delete cart")
+		logrus.Errorf("buyProducts %v", err)
+		return c.String(http.StatusBadRequest, "failed to delete cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -381,13 +381,13 @@ func (eu *EntityUser) SignUpAdmin(c echo.Context) error {
 		logrus.WithFields(logrus.Fields{
 			"Login":    user.Login,
 			"Password": user.Password,
-		}).Errorf("Handler-SignUpAdmin: error: %v", err)
+		}).Errorf("signUpAdmin %v", err)
 		return c.String(http.StatusBadRequest, "failed to validate fields")
 	}
 	err = eu.srvcUser.SignUpAdmin(c.Request().Context(), &user)
 	if err != nil {
-		logrus.Errorf("EntityUser-SignUpAdmin: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to sign up admin")
+		logrus.Errorf("signUpAdmin %v", err)
+		return c.String(http.StatusBadRequest, "failed to sign up admin")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -396,12 +396,12 @@ func (eu *EntityUser) DeleteByID(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		logrus.Errorf("deleteByID %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		logrus.Errorf("deleteByID %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -412,13 +412,13 @@ func (eu *EntityUser) DeleteByID(c echo.Context) error {
 	}
 	id, err := uuid.Parse(c.FormValue("profileid"))
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteByID: err:%v", err)
+		logrus.Errorf("deleteByID %v", err)
 		return c.String(http.StatusBadRequest, "invalid id")
 	}
 	err = eu.srvcUser.DeleteAccount(c.Request().Context(), id)
 	if err != nil {
-		logrus.Errorf("EntityUser-DeleteByID-DeleteAccount: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to delete another account")
+		logrus.Errorf("deleteByID %v", err)
+		return c.String(http.StatusBadRequest, "failed to delete another account")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -427,18 +427,18 @@ func (eu *EntityUser) Logout(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-Logout: err:%v", err)
+		logrus.Errorf("logout %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-Logout: err:%v", err)
+		logrus.Errorf("logout %v", err)
 		return echo.ErrNotFound
 	}
 	session.Options.MaxAge = -1
 	if err = session.Save(c.Request(), c.Response().Writer); err != nil {
-		logrus.Errorf("EntityUser-Logout: err:%v", err)
-		return c.String(http.StatusInternalServerError, "error saving session")
+		logrus.Errorf("logout %v", err)
+		return c.String(http.StatusBadRequest, "error saving session")
 	}
 	return c.Redirect(http.StatusSeeOther, "/")
 }
@@ -451,12 +451,12 @@ func (eu *EntityUser) SaveCart(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+		logrus.Errorf("saveCart %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
+		logrus.Errorf("saveCart %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -466,8 +466,8 @@ func (eu *EntityUser) SaveCart(c echo.Context) error {
 
 	err = eu.srvcCart.AddCartItems(c.Request().Context(), profileid, cartItems)
 	if err != nil {
-		logrus.Errorf("EntityUser-SaveCart: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to save cart")
+		logrus.Errorf("saveCart %v", err)
+		return c.String(http.StatusBadRequest, "failed to save cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }
@@ -476,12 +476,12 @@ func (eu *EntityUser) ClearCart(c echo.Context) error {
 	store := NewRedisStore(eu.cfg)
 	cookie, err := c.Cookie("SESSION_ID")
 	if err != nil {
-		logrus.Errorf("EntityUser-ClearCart: err:%v", err)
+		logrus.Errorf("clearCart %v", err)
 		return echo.ErrUnauthorized
 	}
 	session, err := store.Get(c.Request(), cookie.Name)
 	if err != nil {
-		logrus.Errorf("EntityUser-ClearCart: err:%v", err)
+		logrus.Errorf("clearCart %v", err)
 		return echo.ErrNotFound
 	}
 	if len(session.Values) == 0 {
@@ -490,8 +490,8 @@ func (eu *EntityUser) ClearCart(c echo.Context) error {
 	profileid := session.Values["id"].(string)
 	err = eu.srvcCart.DeleteCart(c.Request().Context(), profileid)
 	if err != nil {
-		logrus.Errorf("EntityUser-ClearCart-DeleteCart: err:%v", err)
-		return c.String(http.StatusInternalServerError, "failed to delete cart")
+		logrus.Errorf("clearCart %v", err)
+		return c.String(http.StatusBadRequest, "failed to delete cart")
 	}
 	return c.Redirect(http.StatusSeeOther, "/index")
 }

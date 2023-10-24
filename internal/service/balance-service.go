@@ -27,20 +27,20 @@ func (b *BalanceService) BalanceOperation(ctx context.Context, balance *model.Ba
 	if balance.Operation.IsNegative() {
 		money, err := b.GetBalance(ctx, balance.ProfileID)
 		if err != nil {
-			return fmt.Errorf("BalanceService-BalanceOperation-GetBalance: error:%v", err)
+			return fmt.Errorf("getBalance %w", err)
 		}
 		if decimal.NewFromFloat(money).Cmp(balance.Operation.Abs()) == 1 {
 			err = b.bRep.BalanceOperation(ctx, balance)
 			if err != nil {
-				return fmt.Errorf("BalanceService-BalanceOperation: error:%v", err)
+				return fmt.Errorf("balanceOperation %w", err)
 			}
 			return nil
 		}
-		return fmt.Errorf("BalanceService-BalanceOperation: not enough money")
+		return fmt.Errorf("not enough money")
 	}
 	err := b.bRep.BalanceOperation(ctx, balance)
 	if err != nil {
-		return fmt.Errorf("BalanceService-BalanceOperation: error:%v", err)
+		return fmt.Errorf("balanceOperation %w", err)
 	}
 	return nil
 }
@@ -48,7 +48,7 @@ func (b *BalanceService) BalanceOperation(ctx context.Context, balance *model.Ba
 func (b *BalanceService) GetBalance(ctx context.Context, profileID uuid.UUID) (float64, error) {
 	money, err := b.bRep.GetBalance(ctx, profileID)
 	if err != nil {
-		return 0, fmt.Errorf("BalanceService-GetBalance: error:%v", err)
+		return 0, fmt.Errorf("getBalance %w", err)
 	}
 	return money, nil
 }
